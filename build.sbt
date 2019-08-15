@@ -4,9 +4,11 @@ version := "0.1"
 
 scalaVersion := "2.12.8"
 
+resolvers += Resolver.mavenLocal
+
 resolvers += "Jisti ORG Snapshots" at "https://github.com/jitsi/jitsi-maven-repository/raw/master/snapshots/"
 
-resolvers += "Jisti ORG Releases" at "https://github.com/jitsi/jitsi-maven-repository/raw/master/releases/"
+//resolvers += "Jisti ORG Releases" at "https://github.com/jitsi/jitsi-maven-repository/raw/master/releases/"
 
 val projectMainClass = "org.seekloud.octo.Boot"
 
@@ -29,5 +31,6 @@ lazy val root = (project in file("."))
   )
   .settings(
     libraryDependencies ++= Dependencies.backendDependencies,
-    libraryDependencies ++= Dependencies.testLibs
+    libraryDependencies ++= Dependencies.testLibs,
+    libraryDependencies ++= Dependencies.jitsiLibs
   )

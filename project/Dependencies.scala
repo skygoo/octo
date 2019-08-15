@@ -43,9 +43,6 @@ object Dependencies {
   val ehcache = "net.sf.ehcache" % "ehcache" % "2.10.4"
   //  val netty = "io.netty" % "netty-all" % "4.1.36.Final"
 
-  // https://mvnrepository.com/artifact/org.jitsi/ice4j
-  val ice4j = "org.jitsi" % "ice4j" % "2.0.0-SNAPSHOT"
-
   val backendDependencies: Seq[ModuleID] =
     Dependencies.akkaSeq ++
       Dependencies.akkaHttpSeq ++
@@ -56,14 +53,18 @@ object Dependencies {
         Dependencies.logback,
         Dependencies.codec,
         //        Dependencies.asynchttpclient,
-        Dependencies.ehcache,
-        Dependencies.ice4j
+        Dependencies.ehcache
       )
 
   val testLibs = Seq(
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaV % "test",
     "org.scalatest" %% "scalatest" % "3.0.7" % "test"
+  )
+
+  val jitsiLibs: Seq[ModuleID] = Seq(
+    "org.jitsi" % "ice4j" % "2.0.0-SNAPSHOT",
+    "org.jitsi" % "libjitsi" % "1.0-SNAPSHOT"
   )
 
 }
