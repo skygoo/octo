@@ -63,8 +63,13 @@ object Dependencies {
   )
 
   val jitsiLibs: Seq[ModuleID] = Seq(
-    "org.jitsi" % "ice4j" % "2.0.0-SNAPSHOT",
-    "org.jitsi" % "libjitsi" % "1.0-SNAPSHOT"
+    "org.jitsi" % "ice4j" % "2.0.0-SNAPSHOT"
+  )
+  
+  val bcpVersion = "1.60"
+  val bcpLibs :Seq[ModuleID] = Seq(
+    "org.bouncycastle" % "bcprov-jdk15on" % bcpVersion,
+    "org.bouncycastle" % "bcpkix-jdk15on" % bcpVersion,
   )
 
 }
