@@ -1,4 +1,4 @@
-let ws = new WebSocket("wss://localhost:30385/octo/userJoin");
+let ws = new WebSocket("wss://10.1.120.225:30385/octo/userJoin?userId=test");
 
 let peerConnectionConfig = {
     'iceServers': [
@@ -23,13 +23,22 @@ window.onload = function () {
 let localStream;
 
 function sendMessage(m) {
-    console.log("sendMessage:", m)
+    console.log("sendMessage:", m);
+    ws.send(m)
 }
+
+ws.onmessage = function (data) {
+    console.log("receive:", data.data)
+};
 
 function gotDescription(description) {
     console.log('got description');
     peer.setLocalDescription(description, function () {
-        sendMessage(JSON.stringify({'sdp': description}));
+        sendMessage(JSON.stringify({
+            'AnchorSdpOffer': {
+                'sdpOffer': description.sdp
+            }
+        }));
     }, function () {
         console.log('set description error')
     });
@@ -37,7 +46,11 @@ function gotDescription(description) {
 
 function gotIceCandidate(event) {
     if (event.candidate != null) {
-        sendMessage(JSON.stringify({'ice': event.candidate}));
+        sendMessage(JSON.stringify({
+            'AddIceCandidate': {
+                'candidateInfo': event.candidate
+            }
+        }));
     }
 }
 

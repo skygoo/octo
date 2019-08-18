@@ -54,12 +54,12 @@ class IceHandler(session: WebSocketSession) {
 
   protected def close() = iceMediaStreamMap.foreach(stream => iceAgent.removeStream(stream._2))
 
-  def getICEMediaStream(mediaType: String): Option[IceMediaStream] = iceMediaStreamMap.find(_._1.mid==mediaType).map(_._2)
+  def getICEMediaStream(mediaType: String): Option[IceMediaStream] = iceMediaStreamMap.find(_._1.mid == mediaType).map(_._2)
 
   def initStream(mediaType: String, rtcpmux: Boolean): Unit = {
     val mediaStream = iceAgent.createMediaStream(mediaType + session.id)
-//    mediaStream.addPairChangeListener(new ICEManager#ICEHandler#PairChangeListener)
-    iceMediaStreamMap.put(IceStreamInfo(mediaType,0), mediaStream)
+    //    mediaStream.addPairChangeListener(new ICEManager#ICEHandler#PairChangeListener)
+    iceMediaStreamMap.put(IceStreamInfo(mediaType, 0), mediaStream)
     //For each Stream create two components (RTP & RTCP)
     try {
       val rtp = iceAgent.createComponent(mediaStream, Transport.UDP, 10000, 10000, 11000)
@@ -78,7 +78,7 @@ class IceHandler(session: WebSocketSession) {
     iceMediaStreamMap.foreach { stream =>
       stream._2.getComponents.forEach(cmp =>
         cmp.getLocalCandidates.forEach(lc =>
-          localCandidates.append(CandidateInfo(stream._1.mid, stream._1.mIndex, lc.toString))
+          localCandidates.append(CandidateInfo(lc.toString, stream._1.mid, stream._1.mIndex))
         )
       )
     }
@@ -105,7 +105,7 @@ class IceHandler(session: WebSocketSession) {
       processRemoteCandidate(sdpMLineIndex, candidate)
     }
     try {
-      session.session ! BrowserMsg.AddIceCandidate(getLocalCandidates)
+      getLocalCandidates.foreach(lc=>session.session ! BrowserMsg.AddIceCandidate(lc))
       iceAgent.startConnectivityEstablishment()
     } catch {
       case e: IOException =>
@@ -116,7 +116,7 @@ class IceHandler(session: WebSocketSession) {
   private def processRemoteCandidate(sdpMLineIndex: Int, candidate: String): Unit = {
     var tokens: Array[String] = candidate.split(":")
     if ("candidate".equalsIgnoreCase(tokens(0))) {
-      val stream: IceMediaStream = iceMediaStreamMap.find(_._1.mIndex==sdpMLineIndex).get._2
+      val stream: IceMediaStream = iceMediaStreamMap.find(_._1.mIndex == sdpMLineIndex).get._2
       tokens = tokens(1).split(" ")
       var i: Int = 0
       val foundation: String = tokens({

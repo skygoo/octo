@@ -6,10 +6,12 @@ import akka.http.scaladsl.model.ws.{Message, TextMessage}
 import akka.stream.{ActorAttributes, Supervision}
 import akka.stream.scaladsl.Flow
 import org.slf4j.LoggerFactory
-
 import scala.concurrent.Future
 import org.seekloud.octo.Boot.{executor, materializer}
 import org.seekloud.octo.ptcl.{BrowserMsg, EpInfo}
+import io.circe.generic.auto._
+import io.circe.parser.decode
+import io.circe.syntax._
 
 /**
   * Created by sky
@@ -57,9 +59,6 @@ object EndPointManager {
 
   private def getWebSocketFlow(userActor: ActorRef[EndPointWorker.Command]): Flow[Message, Message, Any] = {
     import scala.language.implicitConversions
-    import io.circe.generic.auto._
-    import io.circe.parser._
-    import io.circe.syntax._
 
     implicit def parseS2Json(s:String):Option[BrowserMsg.WsJsonMsg] =
       try{

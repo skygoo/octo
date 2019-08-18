@@ -7,8 +7,8 @@ package org.seekloud.octo.ptcl
   */
 object IceProtocol {
   case class CandidateInfo(
+                            candidate: String,
                             sdpMid: String,
-                            sdpMLineIndex: Int,
-                            candidate: String
+                            sdpMLineIndex: Int
                           )
 }

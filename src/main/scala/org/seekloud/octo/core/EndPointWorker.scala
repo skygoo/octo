@@ -75,6 +75,7 @@ object EndPointWorker {
       msg match {
         case UserFrontActor(f) =>
           log.info(s"$logPrefix Ws connect success")
+          f ! BrowserMsg.Test("haha")
           wait4web(epInfo, f, s"${epInfo.id}|work|")
 
         case Stop =>
