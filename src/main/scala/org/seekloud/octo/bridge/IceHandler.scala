@@ -6,10 +6,12 @@ import java.io.IOException
 import javax.sdp.{MediaDescription, SdpException, SessionDescription}
 import org.ice4j.{Transport, TransportAddress}
 import org.ice4j.ice.{Agent, CandidatePair, CandidateType, Component, IceMediaStream, IceProcessingState, RemoteCandidate}
-import org.ice4j.ice.harvest.StunCandidateHarvester
+import org.ice4j.ice.harvest.{StunCandidateHarvester, TurnCandidateHarvest, TurnCandidateHarvester}
+import org.ice4j.security.LongTermCredential
 import org.seekloud.octo.ptcl.IceProtocol.CandidateInfo
 import org.seekloud.octo.ptcl.{BrowserMsg, WebSocketSession}
 import org.slf4j.LoggerFactory
+
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import collection.JavaConverters._
@@ -27,7 +29,9 @@ object IceHandler {
                             mIndex: Int
                           )
 
-  val turnInfo = new StunCandidateHarvester(new TransportAddress("stun.stunprotocol.org", 3478, Transport.UDP))
+  val stunInfo = new StunCandidateHarvester(new TransportAddress("123.56.108.66", 41640, Transport.UDP))
+  val turnCredential = new LongTermCredential("hu", "123456")
+  val turnInfo = new TurnCandidateHarvester(new TransportAddress("123.56.108.66", 41640, Transport.UDP), turnCredential)
 }
 
 class IceHandler(
@@ -43,6 +47,7 @@ class IceHandler(
   private var iceAgentStateIsRunning: Boolean = IceProcessingState.RUNNING == iceAgent.getState
   private val iceMediaStreamMap: mutable.HashMap[IceStreamInfo, IceMediaStream] = mutable.HashMap.empty
 
+  iceAgent.addCandidateHarvester(stunInfo)
   iceAgent.addCandidateHarvester(turnInfo)
   iceAgent.setControlling(false)
   iceAgent.addStateChangeListener(new PropertyChangeListener() {
@@ -118,7 +123,7 @@ class IceHandler(
       //      val stream: IceMediaStream = iceMediaStreamMap.find(_._1.mIndex == candidateInfo.sdpMLineIndex).get._2
       iceMediaStreamMap.find(_._1.mIndex == candidateInfo.sdpMLineIndex) match {
         case Some(stream) =>
-          println ("find--stream")
+          println("find--stream")
           tokens = tokens(1).split(" ")
           var i: Int = 0
           val foundation: String = tokens({
