@@ -125,7 +125,7 @@ public class MockDTLSClient
      */
     public String getLocalFingerPrint(){
     	try {
-			Certificate cert = TlsTestUtils.loadCertificateResource( "D:\\ideaProject\\octo\\src\\main\\resources\\x509-ca.pem");
+			Certificate cert = TlsTestUtils.loadCertificateResource( "./src/main/resources/x509-ca.pem");
 			String fPrint = TlsTestUtils.fingerprint(cert);
 			return "sha-256 "+fPrint;
 		} catch (IOException e) {
