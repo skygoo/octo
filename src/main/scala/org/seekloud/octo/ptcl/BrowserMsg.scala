@@ -26,13 +26,14 @@ object BrowserMsg {
 
   case class Fail(ex: Throwable) extends WsMsg
 
-  trait WsJsonMsg extends WsMsg {
-    val id: String
-  }
+  trait WsJsonMsg extends WsMsg
+
+  case class AnchorSdpOffer(
+                             sdpOffer: String
+                           ) extends WsJsonMsg
 
   case class AddIceCandidate(
-                              candidates: List[CandidateInfo],
-                              override val id: String = MsgId.ADD_ICE_CANDIDATE
+                              candidates: List[CandidateInfo]
                             ) extends WsJsonMsg
 
 }

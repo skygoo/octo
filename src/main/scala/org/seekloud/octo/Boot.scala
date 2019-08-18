@@ -13,6 +13,7 @@ import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import org.seekloud.octo.common.AppSettings
+import org.seekloud.octo.core.EndPointManager
 import org.seekloud.octo.http.HttpService
 
 import scala.language.postfixOps
@@ -37,6 +38,9 @@ object Boot extends HttpService {
   val log: LoggingAdapter = Logging(system, getClass)
 
   implicit val executor: MessageDispatcher = system.dispatchers.lookup("akka.actor.my-blocking-dispatcher")
+
+  val endPointManager = system.spawn(EndPointManager.create(), "EndPointManager")
+
   def main(args: Array[String]): Unit = {
     log.info("Starting.")
     val password: Array[Char] = AppSettings.tlsInfo._1.toCharArray // do not store passwords in code, read them from somewhere safe!

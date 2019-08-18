@@ -5,6 +5,8 @@ import akka.actor.typed.scaladsl.{Behaviors, StashBuffer, TimerScheduler}
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Flow
 import akka.stream.typed.scaladsl.{ActorSink, ActorSource}
+import javax.sdp.{MediaDescription, SdpParseException, SessionDescription}
+import org.opentelecoms.javax.sdp.NistSdpFactory
 import org.seekloud.octo.ptcl.{BrowserMsg, EpInfo}
 import org.slf4j.LoggerFactory
 
@@ -57,10 +59,10 @@ object EndPointWorker {
 
   def create(epInfo: EpInfo): Behavior[Command] = {
     Behaviors.setup[Command] { ctx =>
-      log.debug(s"${ctx.self.path} is starting...")
+      log.debug(s"${epInfo.id}| is starting...")
       implicit val stashBuffer = StashBuffer[Command](Int.MaxValue)
       Behaviors.withTimers[Command] { implicit timer =>
-        init4web(epInfo, s"${epInfo.id} |")
+        init4web(epInfo, s"${epInfo.id}|init|")
       }
     }
   }
@@ -73,7 +75,7 @@ object EndPointWorker {
       msg match {
         case UserFrontActor(f) =>
           log.info(s"$logPrefix Ws connect success")
-          wait4web(liveInfo, f)
+          wait4web(epInfo, f, s"${epInfo.id}|work|")
 
         case Stop =>
           log.info(s"$logPrefix stop")
@@ -85,5 +87,50 @@ object EndPointWorker {
       }
     }
 
+  import collection.JavaConverters._
+  private def wait4web(epInfo: EpInfo, frontActor: ActorRef[BrowserMsg.WsMsg], logPrefix: String)(
+    implicit stashBuffer: StashBuffer[Command],
+    timer: TimerScheduler[Command]
+  ): Behavior[Command] =
+    Behaviors.receive[Command] { (ctx, msg) =>
+      msg match {
+        case msg: WebSocketMsg =>
+          msg.msg.foreach {
+            case m:BrowserMsg.AnchorSdpOffer=>
+              if (m.sdpOffer != null) try {
+                val offerSdp = new NistSdpFactory().createSessionDescription(m.sdpOffer)
+                val md = offerSdp.getMediaDescriptions(false).asScala
+                println(md)
+//                  .asInstanceOf[Buffer[MediaDescription]]
+//                iceHandler.initStream(MediaType.VIDEO, true)
+//                val remoteUfrag = md.getAttribute("ice-ufrag")
+//                val remotePasswd = md.getAttribute("ice-pwd")
+//                iceHandler.setupFragPasswd(remoteUfrag, remotePasswd)
+//                val remoteCandidates = payMap.getCandidates
+//                if (remoteCandidates != null && remoteCandidates.size > 0) iceHandler.processRemoteCandidates(remoteCandidates)
+//                val answerDescription = IOUtils.toString(getClass.getResourceAsStream("/mozsdp_videoonly.answer"))
+//                val answerSdp = new NistSdpFactory().createSessionDescription(answerDescription)
+//                mediaHandler.prepareAnswer(offerSdp, answerSdp)
+//                answerMsg.setSdp(answerSdp.toString)
+//                session.sendMessage(new TextMessage(mapper.writeValueAsBytes(answerMsg)))
+//                mediaHandler.openStream(MediaType.VIDEO)
+              } catch {
+                case e: SdpParseException =>
+                  log.error(logPrefix+" "+e.getMessage)
+                  log.error(logPrefix+" "+m.sdpOffer)
+              }
+            case m:BrowserMsg.AddIceCandidate=>
+
+          }
+          Behaviors.same
+
+        case Stop =>
+          log.info(s"$logPrefix stop")
+          Behaviors.stopped
+        case unKnow =>
+          stashBuffer.stash(unKnow)
+          Behavior.same
+      }
+    }
 
 }

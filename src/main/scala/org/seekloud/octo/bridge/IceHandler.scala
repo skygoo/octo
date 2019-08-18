@@ -3,8 +3,9 @@ package org.seekloud.octo.bridge
 import java.beans.{PropertyChangeEvent, PropertyChangeListener}
 import java.io.IOException
 
+import javax.sdp.{MediaDescription, SdpException, SessionDescription}
 import org.ice4j.{Transport, TransportAddress}
-import org.ice4j.ice.{Agent, CandidateType, Component, IceMediaStream, IceProcessingState, RemoteCandidate}
+import org.ice4j.ice.{Agent, CandidatePair, CandidateType, Component, IceMediaStream, IceProcessingState, RemoteCandidate}
 import org.ice4j.ice.harvest.TurnCandidateHarvester
 import org.seekloud.octo.ptcl.IceProtocol.CandidateInfo
 import org.seekloud.octo.ptcl.{BrowserMsg, WebSocketSession}
@@ -27,42 +28,52 @@ object IceHandler {
                           )
 
   val turnInfo = new TurnCandidateHarvester(new TransportAddress("123.56.108.66", 41640, Transport.UDP))
-  val handlers: mutable.HashMap[String, IceHandler] = mutable.HashMap.empty
-
-  def closeHandlers(id: String) = handlers.remove(id).foreach(_.close())
 }
 
-class IceHandler {
-  private val log = LoggerFactory.getLogger(this.getClass)
+class IceHandler(session: WebSocketSession) {
+  protected val log = LoggerFactory.getLogger(this.getClass)
 
-  private var logPrefix: String = " |"
+  protected var logPrefix: String = session.id + " |"
 
   import IceHandler._
 
   private val iceAgent = new Agent
   private val iceMediaStreamMap: mutable.HashMap[IceStreamInfo, IceMediaStream] = mutable.HashMap.empty
-  private var sessionOpt: Option[WebSocketSession] = None
 
-  def this(session: WebSocketSession) {
-    this
-    sessionOpt = Some(session)
-    logPrefix = session.id + logPrefix
-    iceAgent.addCandidateHarvester(turnInfo)
-    iceAgent.setControlling(false)
-    iceAgent.addStateChangeListener(new PropertyChangeListener() {
-      override def propertyChange(evt: PropertyChangeEvent): Unit = {
-        val oldState = evt.getOldValue.asInstanceOf[IceProcessingState]
-        val newState = evt.getNewValue.asInstanceOf[IceProcessingState]
-        log.info(logPrefix + s"change state from ${oldState.toString} to ${newState.toString}")
-      }
-    })
-  }
+  iceAgent.addCandidateHarvester(turnInfo)
+  iceAgent.setControlling(false)
+  iceAgent.addStateChangeListener(new PropertyChangeListener() {
+    override def propertyChange(evt: PropertyChangeEvent): Unit = {
+      val oldState = evt.getOldValue.asInstanceOf[IceProcessingState]
+      val newState = evt.getNewValue.asInstanceOf[IceProcessingState]
+      log.info(logPrefix + s"change state from ${oldState.toString} to ${newState.toString}")
+    }
+  })
 
   protected def getIceState() = iceAgent.getState
 
   protected def close() = iceMediaStreamMap.foreach(stream => iceAgent.removeStream(stream._2))
 
-  private def getLocalCandidates: List[CandidateInfo] = {
+  def getICEMediaStream(mediaType: String): Option[IceMediaStream] = iceMediaStreamMap.find(_._1.mid==mediaType).map(_._2)
+
+  def initStream(mediaType: String, rtcpmux: Boolean): Unit = {
+    val mediaStream = iceAgent.createMediaStream(mediaType + session.id)
+//    mediaStream.addPairChangeListener(new ICEManager#ICEHandler#PairChangeListener)
+    iceMediaStreamMap.put(IceStreamInfo(mediaType,0), mediaStream)
+    //For each Stream create two components (RTP & RTCP)
+    try {
+      val rtp = iceAgent.createComponent(mediaStream, Transport.UDP, 10000, 10000, 11000)
+      if (!rtcpmux) {
+        val rtcp = iceAgent.createComponent(mediaStream, Transport.UDP, 10001, 10001, 11000)
+      }
+    } catch {
+      case e@(_: IllegalArgumentException | _: IOException) =>
+        // TODO Auto-generated catch block
+        e.printStackTrace()
+    }
+  }
+
+  private def getLocalCandidates = {
     val localCandidates = new ArrayBuffer[CandidateInfo]
     iceMediaStreamMap.foreach { stream =>
       stream._2.getComponents.forEach(cmp =>
@@ -94,7 +105,7 @@ class IceHandler {
       processRemoteCandidate(sdpMLineIndex, candidate)
     }
     try {
-      sessionOpt.foreach(_.session ! BrowserMsg.AddIceCandidate(getLocalCandidates))
+      session.session ! BrowserMsg.AddIceCandidate(getLocalCandidates)
       iceAgent.startConnectivityEstablishment()
     } catch {
       case e: IOException =>
@@ -172,5 +183,28 @@ class IceHandler {
         parentComponent.addRemoteCandidate(rc)
       }
     } else throw new IllegalArgumentException("Does not start with candidate:")
+  }
+
+  def prepareAnswer(offerSdp: SessionDescription, answerSdp: SessionDescription): SessionDescription = {
+    try
+      answerSdp.getMediaDescriptions(false).asInstanceOf[Vector[MediaDescription]].foreach((md: MediaDescription) =>
+        try {
+          if ("audio" == md.getMedia.getMediaType) {
+            //md.setAttribute("mid", audiomediaStream.getName());
+          }
+          else if ("video" == md.getMedia.getMediaType) {
+            //md.setAttribute("mid", videomediaStream.getName());
+          }
+          md.setAttribute("ice-ufrag", iceAgent.getLocalUfrag)
+          md.setAttribute("ice-pwd", iceAgent.getLocalPassword)
+        } catch {
+          case e: SdpException =>
+            throw new RuntimeException(e)
+        }
+      ) catch {
+      case e: SdpException =>
+        throw new RuntimeException(e)
+    }
+    answerSdp
   }
 }
