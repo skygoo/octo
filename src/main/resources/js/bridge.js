@@ -28,7 +28,20 @@ function sendMessage(m) {
 }
 
 ws.onmessage = function (data) {
-    console.log("receive:", data.data)
+    let jsonMsg = JSON.parse(data.data);
+    console.log("receive:", data.data);
+    if (jsonMsg.AddIceCandidate) {
+        console.log(jsonMsg.AddIceCandidate.candidateInfo);
+        peer.addIceCandidate(new RTCIceCandidate(jsonMsg.AddIceCandidate.candidateInfo.candidate)).then(_ => {
+        }).catch(e =>
+            console.log("Error addIce", e)
+        )
+    } else if (jsonMsg.ProcessSdpAnswer) {
+        peer.setRemoteDescription(new RTCSessionDescription({
+            type: 'answer',
+            sdp: jsonMsg.ProcessSdpAnswer.sdpAnswer
+        }))
+    }
 };
 
 function gotDescription(description) {

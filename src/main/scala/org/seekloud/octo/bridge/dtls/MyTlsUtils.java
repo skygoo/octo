@@ -92,7 +92,7 @@ public class MyTlsUtils {
             }
         }
 
-        return loadSignerCredentials(context, new String[]{certResource, "x509-ca.pem"},
+        return loadSignerCredentials(context, new String[]{certResource, "./src/main/resources/x509-ca.pem"},
                 keyResource, signatureAndHashAlgorithm);
     }
 

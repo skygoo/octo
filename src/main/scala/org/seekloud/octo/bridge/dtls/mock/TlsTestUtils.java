@@ -11,6 +11,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -127,7 +128,7 @@ public class TlsTestUtils
             }
         }
 
-        return loadSignerCredentials(context, new String[]{ certResource, "x509-ca.pem" },
+        return loadSignerCredentials(context, new String[]{ certResource, "./src/main/resources/x509-ca.pem" },
             keyResource, signatureAndHashAlgorithm);
     }
 
@@ -174,7 +175,7 @@ public class TlsTestUtils
     static PemObject loadPemResource(String resource)
         throws IOException
     {
-        InputStream s = TlsTestUtils.class.getResourceAsStream(resource);
+        InputStream s = new FileInputStream(resource);
         PemReader p = new PemReader(new InputStreamReader(s));
         PemObject o = p.readPemObject();
         p.close();

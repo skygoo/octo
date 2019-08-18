@@ -6,6 +6,9 @@ import java.net.URLEncoder
 import akka.util.ByteString
 import org.slf4j.LoggerFactory
 
+import java.io.BufferedReader
+import java.io.FileInputStream
+import java.io.InputStreamReader
 /**
   * User: easego
   * Date: 2018/5/11
@@ -16,6 +19,20 @@ object FileUtil {
 
   private val log = LoggerFactory.getLogger(this.getClass)
 
+  def read4File(path:String) = {
+    val is = new FileInputStream(path)
+    val streamReader = new InputStreamReader(is)
+    val reader = new BufferedReader(streamReader)
+    var line:String = null
+    val stringBuilder = new StringBuilder
+    while ( {
+      (line = reader.readLine) != null
+    }) { // stringBuilder.append(line);
+      stringBuilder.append(line)
+    }
+    reader.close()
+    stringBuilder.mkString
+  }
 
   def getFileName(id:Long,name:String) = {
     val index = name.lastIndexOf(".")

@@ -40,4 +40,7 @@ object BrowserMsg {
                               candidateInfo: CandidateInfo
                             ) extends WsJsonMsg
 
+  case class ProcessSdpAnswer(
+                             sdpAnswer: String
+                             )extends WsJsonMsg
 }

@@ -6,13 +6,13 @@ import java.io.IOException
 import javax.sdp.{MediaDescription, SdpException, SessionDescription}
 import org.ice4j.{Transport, TransportAddress}
 import org.ice4j.ice.{Agent, CandidatePair, CandidateType, Component, IceMediaStream, IceProcessingState, RemoteCandidate}
-import org.ice4j.ice.harvest.TurnCandidateHarvester
+import org.ice4j.ice.harvest.StunCandidateHarvester
 import org.seekloud.octo.ptcl.IceProtocol.CandidateInfo
 import org.seekloud.octo.ptcl.{BrowserMsg, WebSocketSession}
 import org.slf4j.LoggerFactory
-
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import collection.JavaConverters._
 
 /**
   * Created by sky
@@ -27,10 +27,12 @@ object IceHandler {
                             mIndex: Int
                           )
 
-  val turnInfo = new TurnCandidateHarvester(new TransportAddress("123.56.108.66", 41640, Transport.UDP))
+  val turnInfo = new StunCandidateHarvester(new TransportAddress("stun.stunprotocol.org", 3478, Transport.UDP))
 }
 
-class IceHandler(session: WebSocketSession) {
+class IceHandler(
+                  val session: WebSocketSession
+                ) {
   protected val log = LoggerFactory.getLogger(this.getClass)
 
   protected var logPrefix: String = session.id + " |"
@@ -38,6 +40,7 @@ class IceHandler(session: WebSocketSession) {
   import IceHandler._
 
   private val iceAgent = new Agent
+  private var iceAgentStateIsRunning: Boolean = IceProcessingState.RUNNING == iceAgent.getState
   private val iceMediaStreamMap: mutable.HashMap[IceStreamInfo, IceMediaStream] = mutable.HashMap.empty
 
   iceAgent.addCandidateHarvester(turnInfo)
@@ -47,6 +50,7 @@ class IceHandler(session: WebSocketSession) {
       val oldState = evt.getOldValue.asInstanceOf[IceProcessingState]
       val newState = evt.getNewValue.asInstanceOf[IceProcessingState]
       log.info(logPrefix + s"change state from ${oldState.toString} to ${newState.toString}")
+      iceAgentStateIsRunning = IceProcessingState.RUNNING == newState
     }
   })
 
@@ -56,10 +60,10 @@ class IceHandler(session: WebSocketSession) {
 
   def getICEMediaStream(mediaType: String): Option[IceMediaStream] = iceMediaStreamMap.find(_._1.mid == mediaType).map(_._2)
 
-  def initStream(mediaType: String, rtcpmux: Boolean): Unit = {
+  def addStream(mediaType: String, mid: Int, rtcpmux: Boolean): Unit = {
     val mediaStream = iceAgent.createMediaStream(mediaType + session.id)
     //    mediaStream.addPairChangeListener(new ICEManager#ICEHandler#PairChangeListener)
-    iceMediaStreamMap.put(IceStreamInfo(mediaType, 0), mediaStream)
+    iceMediaStreamMap.put(IceStreamInfo(mediaType, mid), mediaStream)
     //For each Stream create two components (RTP & RTCP)
     try {
       val rtp = iceAgent.createComponent(mediaStream, Transport.UDP, 10000, 10000, 11000)
@@ -88,24 +92,19 @@ class IceHandler(session: WebSocketSession) {
   private var remoteUfrag: String = null
   private var remotePassword: String = null
 
-  protected def setupFragPasswd(remoteUfrag: String, remotePassword: String): Unit = {
+  def setupFragPasswd(remoteUfrag: String, remotePassword: String): Unit = {
     this.remoteUfrag = remoteUfrag
     this.remotePassword = remotePassword
   }
 
 
-  def processRemoteCandidates(candidates: List[CandidateInfo]): Unit = {
+  def startConnectivityEstablishment(): Unit = {
     iceMediaStreamMap.foreach { s =>
       s._2.setRemoteUfrag(this.remoteUfrag)
       s._2.setRemotePassword(this.remotePassword)
     }
-    for (candidateMsg <- candidates) {
-      val candidate: String = candidateMsg.candidate
-      val sdpMLineIndex: Int = candidateMsg.sdpMLineIndex
-      processRemoteCandidate(sdpMLineIndex, candidate)
-    }
     try {
-      getLocalCandidates.foreach(lc=>session.session ! BrowserMsg.AddIceCandidate(lc))
+      getLocalCandidates.foreach(lc => session.session ! BrowserMsg.AddIceCandidate(lc))
       iceAgent.startConnectivityEstablishment()
     } catch {
       case e: IOException =>
@@ -113,81 +112,93 @@ class IceHandler(session: WebSocketSession) {
     }
   }
 
-  private def processRemoteCandidate(sdpMLineIndex: Int, candidate: String): Unit = {
-    var tokens: Array[String] = candidate.split(":")
+  def processRemoteCandidate(candidateInfo: CandidateInfo): Unit = {
+    var tokens: Array[String] = candidateInfo.candidate.split(":")
     if ("candidate".equalsIgnoreCase(tokens(0))) {
-      val stream: IceMediaStream = iceMediaStreamMap.find(_._1.mIndex == sdpMLineIndex).get._2
-      tokens = tokens(1).split(" ")
-      var i: Int = 0
-      val foundation: String = tokens({
-        i += 1
-        i - 1
-      }).trim
-      val cmpId: Int = tokens({
-        i += 1
-        i - 1
-      }).trim.toInt
-      val parentComponent: Component = stream.getComponent(cmpId)
-      if (parentComponent != null) {
-        val transport: Transport = Transport.parse(tokens({
-          i += 1
-          i - 1
-        }).trim.toLowerCase)
-        val priority: Long = tokens({
-          i += 1
-          i - 1
-        }).trim.toLong
-        val hostaddress: String = tokens({
-          i += 1
-          i - 1
-        }).trim
-        val port: Int = tokens({
-          i += 1
-          i - 1
-        }).trim.toInt
-        val transportAddress: TransportAddress = new TransportAddress(hostaddress, port, transport)
-        var `type`: CandidateType = null
-        if ("typ".equalsIgnoreCase(tokens(i).trim)) `type` = CandidateType.parse(tokens({
-          i += 1
-          i
-        }).trim.toLowerCase)
-        if (tokens.length > i && "generation" == tokens(i)) {
-          val generation: Int = tokens({
+      //      val stream: IceMediaStream = iceMediaStreamMap.find(_._1.mIndex == candidateInfo.sdpMLineIndex).get._2
+      iceMediaStreamMap.find(_._1.mIndex == candidateInfo.sdpMLineIndex) match {
+        case Some(stream) =>
+          println ("find--stream")
+          tokens = tokens(1).split(" ")
+          var i: Int = 0
+          val foundation: String = tokens({
             i += 1
-            i
-          }).trim.toInt
-          i += 1
-        }
-        var related: RemoteCandidate = null
-        var rAddr: String = null
-        if (tokens.length > i && "raddr".equalsIgnoreCase(tokens(i))) {
-          rAddr = tokens({
-            i += 1
-            i
+            i - 1
           }).trim
-          i += 1
-        }
-        var rport: Int = -1
-        if (tokens.length > i && "rport".equalsIgnoreCase(tokens(i))) {
-          rport = tokens({
+          val cmpId: Int = tokens({
             i += 1
-            i
+            i - 1
           }).trim.toInt
-          i += 1
-        }
-        if (rAddr != null) {
-          val rAddress: TransportAddress = new TransportAddress(rAddr, rport, transport)
-          related = new RemoteCandidate(rAddress, parentComponent, `type`, foundation, priority, null)
-        }
-        val rc: RemoteCandidate = new RemoteCandidate(transportAddress, parentComponent, `type`, foundation, priority, related)
-        parentComponent.addRemoteCandidate(rc)
+          val parentComponent: Component = stream._2.getComponent(cmpId)
+          if (parentComponent != null) {
+            val transport: Transport = Transport.parse(tokens({
+              i += 1
+              i - 1
+            }).trim.toLowerCase)
+            val priority: Long = tokens({
+              i += 1
+              i - 1
+            }).trim.toLong
+            val hostaddress: String = tokens({
+              i += 1
+              i - 1
+            }).trim
+            val port: Int = tokens({
+              i += 1
+              i - 1
+            }).trim.toInt
+            val transportAddress: TransportAddress = new TransportAddress(hostaddress, port, transport)
+            var `type`: CandidateType = null
+            if ("typ".equalsIgnoreCase(tokens(i).trim)) `type` = CandidateType.parse(tokens({
+              i += 1
+              i
+            }).trim.toLowerCase)
+            if (tokens.length > i && "generation" == tokens(i)) {
+              val generation: Int = tokens({
+                i += 1
+                i
+              }).trim.toInt
+              i += 1
+            }
+            var related: RemoteCandidate = null
+            var rAddr: String = null
+            if (tokens.length > i && "raddr".equalsIgnoreCase(tokens(i))) {
+              rAddr = tokens({
+                i += 1
+                i
+              }).trim
+              i += 1
+            }
+            var rport: Int = -1
+            if (tokens.length > i && "rport".equalsIgnoreCase(tokens(i))) {
+              rport = tokens({
+                i += 1
+                i
+              }).trim.toInt
+              i += 1
+            }
+            if (rAddr != null) {
+              val rAddress: TransportAddress = new TransportAddress(rAddr, rport, transport)
+              related = new RemoteCandidate(rAddress, parentComponent, `type`, foundation, priority, null)
+            }
+            val rc: RemoteCandidate = new RemoteCandidate(transportAddress, parentComponent, `type`, foundation, priority, related)
+            if (iceAgentStateIsRunning) {
+              parentComponent.addUpdateRemoteCandidates(rc)
+            } else {
+              parentComponent.addRemoteCandidate(rc)
+            }
+          }
+        case None =>
+          println("none--stream")
       }
     } else throw new IllegalArgumentException("Does not start with candidate:")
   }
 
   def prepareAnswer(offerSdp: SessionDescription, answerSdp: SessionDescription): SessionDescription = {
-    try
-      answerSdp.getMediaDescriptions(false).asInstanceOf[Vector[MediaDescription]].foreach((md: MediaDescription) =>
+    try {
+      val localDescriptions = answerSdp.getMediaDescriptions(false).asScala
+      println(localDescriptions.size)
+      localDescriptions.map(_.asInstanceOf[MediaDescription]).foreach(md =>
         try {
           if ("audio" == md.getMedia.getMediaType) {
             //md.setAttribute("mid", audiomediaStream.getName());
@@ -201,7 +212,8 @@ class IceHandler(session: WebSocketSession) {
           case e: SdpException =>
             throw new RuntimeException(e)
         }
-      ) catch {
+      )
+    } catch {
       case e: SdpException =>
         throw new RuntimeException(e)
     }

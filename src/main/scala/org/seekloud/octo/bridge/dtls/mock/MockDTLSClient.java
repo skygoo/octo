@@ -114,7 +114,7 @@ public class MockDTLSClient
                 }
 
                 return TlsTestUtils.loadSignerCredentials(context, certificateRequest.getSupportedSignatureAlgorithms(),
-                    SignatureAlgorithm.rsa, "x509-client.pem", "x509-client-key.pem");
+                    SignatureAlgorithm.rsa, "./src/main/resources/x509-client.pem", "./src/main/resources/x509-client-key.pem");
             }
         };
     }
@@ -125,7 +125,7 @@ public class MockDTLSClient
      */
     public String getLocalFingerPrint(){
     	try {
-			Certificate cert = TlsTestUtils.loadCertificateResource( "x509-client.pem");
+			Certificate cert = TlsTestUtils.loadCertificateResource( "D:\\ideaProject\\octo\\src\\main\\resources\\x509-ca.pem");
 			String fPrint = TlsTestUtils.fingerprint(cert);
 			return "sha-256 "+fPrint;
 		} catch (IOException e) {
