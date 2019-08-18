@@ -1,7 +1,7 @@
 package org.seekloud.octo.ptcl
 
 import akka.actor.typed.ActorRef
-import org.seekloud.octo.bridge.core.RtcWorker
+import org.seekloud.octo.core.EndPointWorker
 
 /**
   * Created by sky
@@ -10,6 +10,6 @@ import org.seekloud.octo.bridge.core.RtcWorker
   */
 case class WebSocketSession(
                              id: String,
-                             actor:ActorRef[RtcWorker.Command],
+                             actor:ActorRef[EndPointWorker.Command],
                              session:ActorRef[BrowserMsg.WsMsg]
                            )

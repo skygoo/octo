@@ -26,8 +26,6 @@ object BrowserMsg {
 
   case class Fail(ex: Throwable) extends WsMsg
 
-  case class ProtocolMsg(m: String) extends WsMsg
-
   trait WsJsonMsg extends WsMsg {
     val id: String
   }

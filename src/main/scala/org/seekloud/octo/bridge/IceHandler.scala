@@ -94,7 +94,7 @@ class IceHandler {
       processRemoteCandidate(sdpMLineIndex, candidate)
     }
     try {
-      sessionOpt.foreach(_.session ! BrowserMsg.AddIceCandidate(candidates))
+      sessionOpt.foreach(_.session ! BrowserMsg.AddIceCandidate(getLocalCandidates))
       iceAgent.startConnectivityEstablishment()
     } catch {
       case e: IOException =>
@@ -105,7 +105,7 @@ class IceHandler {
   private def processRemoteCandidate(sdpMLineIndex: Int, candidate: String): Unit = {
     var tokens: Array[String] = candidate.split(":")
     if ("candidate".equalsIgnoreCase(tokens(0))) {
-      val stream: IceMediaStream = iceMediaStreams.get(sdpMLineIndex)
+      val stream: IceMediaStream = iceMediaStreamMap.find(_._1.mIndex==sdpMLineIndex).get._2
       tokens = tokens(1).split(" ")
       var i: Int = 0
       val foundation: String = tokens({
@@ -122,10 +122,10 @@ class IceHandler {
           i += 1
           i - 1
         }).trim.toLowerCase)
-        val priority: Long = Long.parseLong(tokens({
+        val priority: Long = tokens({
           i += 1
           i - 1
-        }).trim)
+        }).trim.toLong
         val hostaddress: String = tokens({
           i += 1
           i - 1
